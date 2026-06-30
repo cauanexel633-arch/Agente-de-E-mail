@@ -1,16 +1,16 @@
+import './globals.css'
+
 export const metadata = {
-  title: "agente-email-ia",
-  description: "Crie seu agente de e-mail com IA"
-};
+  title: 'agente.email — Painel de Configuração',
+  description: 'Configure sua conta de envio e conecte as chaves do seu agente de e-mail com IA.',
+}
 
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body style={{fontFamily:'system-ui, -apple-system, Segoe UI', margin:0, padding:'2rem', background:'#f7f7f8', color:'#111'}}>
-        <div style={{maxWidth:800, margin:'0 auto', background:'white', padding:'2rem', borderRadius:12, boxShadow:'0 2px 10px rgba(0,0,0,0.05)'}}>
-          {children}
-        </div>
+      <body className="min-h-screen bg-[#070a14] text-slate-200 antialiased selection:bg-violet-500/30">
+        {children}
       </body>
     </html>
-  );
+  )
 }
