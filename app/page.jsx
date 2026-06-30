@@ -119,7 +119,7 @@ export default function Home() {
             <div>
               <label className="text-sm text-white/70">Senha de App do Gmail</label>
               <input type="password" value={form.email_password} onChange={e=>setForm({...form, email_password:e.target.value})} placeholder="••••••••••••••••" className="mt-1 w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:border-violet-500"/>
-              <p className="text-xs text-white/40 mt-1">Crie em myaccount.google.com > Segurança > Senhas de app</p>
+              <p className="text-xs text-white/40 mt-1">Crie em myaccount.google.com &gt; Segurança &gt; Senhas de app</p>
             </div>
           </div>
 
