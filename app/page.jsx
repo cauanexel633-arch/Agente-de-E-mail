@@ -127,6 +127,35 @@ export default function Home() {
     setStatus({ type: 'success', msg: 'Copiado para a área de transferência!' })
   }
 
+  const buildAgentPrompt = () => {
+    const url =
+      typeof window !== 'undefined' && form.agent_code
+        ? `${window.location.origin}/api/agent/${form.agent_code}`
+        : `https://SEU-DOMINIO.com/api/agent/${form.agent_code}`
+
+    return `Você é meu assistente de e-mails. Você NUNCA envia sem minha aprovação.
+
+Para enviar um e-mail, você deve chamar esta API:
+
+POST ${url}
+
+Headers:
+Content-Type: application/json
+x-api-key: ${form.api_key || 'SUA_API_KEY_HUGGING_FACE'}
+
+Body:
+{
+  "para": "email_do_destinatario",
+  "assunto": "assunto do e-mail",
+  "corpo": "corpo do e-mail"
+}
+
+REGRAS:
+1. Sempre me mostre o e-mail completo antes e pergunte "Posso enviar?"
+2. Só chame a API se eu responder exatamente "enviar", "sim" ou "pode enviar"
+3. Nunca invente destinatário`
+  }
+
   if (checkingSession) {
     return (
       <div className="h-screen grid place-items-center bg-[#070a14]">
@@ -312,6 +341,28 @@ export default function Home() {
                     <KeyRow label="Endpoint exclusivo" value={endpoint} onCopy={copy} mono small />
                   </div>
                 )}
+              </div>
+            )}
+
+            {form.agent_code && (
+              <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-6">
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <h3 className="font-semibold text-white">Prompt para sua IA</h3>
+                  <button
+                    onClick={() => copy(buildAgentPrompt())}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600/15 border border-violet-500/30 text-violet-300 text-xs font-medium hover:bg-violet-600/25 transition shrink-0"
+                  >
+                    <Copy size={13} />
+                    Copiar prompt
+                  </button>
+                </div>
+                <p className="text-sm text-slate-400 mb-4">
+                  Cole este texto nas instruções do seu assistente (ChatGPT, Claude, etc.) para
+                  ele saber como enviar e-mails através do seu agente.
+                </p>
+                <pre className="p-4 rounded-xl bg-black/40 border border-white/5 text-xs text-slate-300 whitespace-pre-wrap leading-relaxed overflow-x-auto">
+                  {buildAgentPrompt()}
+                </pre>
               </div>
             )}
           </div>
