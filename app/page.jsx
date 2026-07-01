@@ -11,10 +11,6 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
-function genCode() {
-  return 'ag_' + Math.random().toString(36).slice(2, 10)
-}
-
 const GMAIL_STEPS = [
   'Acesse sua Conta Google',
   'Vá em Segurança',
@@ -31,6 +27,7 @@ export default function Home() {
     api_key: '',
     email_password: '',
     agent_code: '',
+    agent_secret: '',
     resumo: '',
   })
   const [status, setStatus] = useState({ type: '', msg: '' })
@@ -60,6 +57,7 @@ export default function Home() {
         api_key: data.api_key || '',
         email_password: '',
         agent_code: data.agent_code || '',
+        agent_secret: data.agent_secret || '',
         resumo: data.resumo || '',
       })
     }
@@ -85,29 +83,34 @@ export default function Home() {
     setSaving(true)
     setStatus({ type: '', msg: '' })
 
-    const { data: { user } } = await supabase.auth.getUser()
-    const code = form.agent_code || genCode()
-    const resumo = `Agente para ${form.email_remetente} - responde automaticamente via IA`
+    try {
+      const res = await fetch('/api/salvar-agente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email_remetente: form.email_remetente,
+          api_key: form.api_key,
+          email_password: form.email_password, // vai em texto puro só nesse POST; o servidor criptografa antes de salvar
+        }),
+      })
+      const data = await res.json()
 
-    const { error } = await supabase.from('agentes').upsert(
-      {
-        user_id: user.id,
-        email_remetente: form.email_remetente,
-        api_key: form.api_key,
-        email_password_encrypted: form.email_password,
-        agent_code: code,
-        resumo,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    )
-
-    if (!error) {
-      setForm((f) => ({ ...f, agent_code: code, resumo }))
-      setStatus({ type: 'success', msg: 'Configurações salvas com sucesso!' })
-    } else {
-      setStatus({ type: 'error', msg: error.message })
+      if (!res.ok) {
+        setStatus({ type: 'error', msg: data.error || 'Erro ao salvar configurações.' })
+      } else {
+        setForm((f) => ({
+          ...f,
+          agent_code: data.agent_code,
+          agent_secret: data.agent_secret,
+          resumo: data.resumo,
+          email_password: '', // limpa o campo depois de salvar, já foi criptografado no servidor
+        }))
+        setStatus({ type: 'success', msg: 'Configurações salvas com sucesso!' })
+      }
+    } catch (err) {
+      setStatus({ type: 'error', msg: 'Falha de conexão ao salvar. Tente novamente.' })
     }
+
     setSaving(false)
   }
 
@@ -115,7 +118,7 @@ export default function Home() {
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('agentes').delete().eq('user_id', user.id)
     if (!error) {
-      setForm({ email_remetente: '', api_key: '', email_password: '', agent_code: '', resumo: '' })
+      setForm({ email_remetente: '', api_key: '', email_password: '', agent_code: '', agent_secret: '', resumo: '' })
       setStatus({ type: 'success', msg: 'Conta removida.' })
     } else {
       setStatus({ type: 'error', msg: error.message })
@@ -128,32 +131,29 @@ export default function Home() {
   }
 
   const buildAgentPrompt = () => {
-    const url =
+    const base =
       typeof window !== 'undefined' && form.agent_code
         ? `${window.location.origin}/api/agent/${form.agent_code}`
         : `https://SEU-DOMINIO.com/api/agent/${form.agent_code}`
+    const key = form.agent_secret || 'SUA_CHAVE'
 
     return `Você é meu assistente de e-mails. Você NUNCA envia sem minha aprovação.
 
-Para enviar um e-mail, você deve chamar esta API:
+Para enviar um e-mail, monte esta URL e acesse (GET) — só de abrir o link, o e-mail é enviado:
 
-POST ${url}
+${base}?key=${key}&para=SEU_TEXTO_AQUI&assunto=SEU_TEXTO_AQUI&corpo=SEU_TEXTO_AQUI
 
-Headers:
-Content-Type: application/json
-x-api-key: ${form.api_key || 'SUA_API_KEY_HUGGING_FACE'}
+Substitua "para", "assunto" e "corpo" pelo conteúdo real, sempre fazendo URL-encode
+(espaços viram %20, quebras de linha viram %0A, & vira %26, etc.) antes de montar o link.
 
-Body:
-{
-  "para": "email_do_destinatario",
-  "assunto": "assunto do e-mail",
-  "corpo": "corpo do e-mail"
-}
+Exemplo real:
+${base}?key=${key}&para=joao%40email.com&assunto=Reuni%C3%A3o%20amanh%C3%A3&corpo=Podemos%20conversar%20%C3%A0s%2015h%3F
 
 REGRAS:
-1. Sempre me mostre o e-mail completo antes e pergunte "Posso enviar?"
-2. Só chame a API se eu responder exatamente "enviar", "sim" ou "pode enviar"
-3. Nunca invente destinatário`
+1. Sempre me mostre o e-mail completo (destinatário, assunto e corpo) antes e pergunte "Posso enviar?"
+2. Só acesse o link se eu responder exatamente "enviar", "sim" ou "pode enviar"
+3. Nunca invente destinatário
+4. Nunca compartilhe esse link com mais ninguém — quem tiver ele consegue mandar e-mail pela minha conta`
   }
 
   if (checkingSession) {
@@ -187,7 +187,9 @@ REGRAS:
   }
 
   const endpoint =
-    mounted && form.agent_code ? `${window.location.origin}/api/agent/${form.agent_code}` : ''
+    mounted && form.agent_code && form.agent_secret
+      ? `${window.location.origin}/api/agent/${form.agent_code}?key=${form.agent_secret}`
+      : ''
 
   return (
     <div className="min-h-screen bg-[#070a14] text-white flex">
@@ -335,16 +337,16 @@ REGRAS:
                   </button>
                 </div>
 
-                {form.agent_code && (
+                {form.agent_code && form.agent_secret && (
                   <div className="mt-4 space-y-2 border-t border-white/5 pt-4">
                     <KeyRow label="Código único" value={form.agent_code} onCopy={copy} mono />
-                    <KeyRow label="Endpoint exclusivo" value={endpoint} onCopy={copy} mono small />
+                    <KeyRow label="Link-gatilho (com chave)" value={endpoint} onCopy={copy} mono small />
                   </div>
                 )}
               </div>
             )}
 
-            {form.agent_code && (
+            {form.agent_code && form.agent_secret && (
               <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-6">
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <h3 className="font-semibold text-white">Prompt para sua IA</h3>
